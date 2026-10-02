@@ -61,6 +61,9 @@
   .hidden{display:none}
   .row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
   .row h2{margin:0;font-size:17px}
+  .btn-clear{padding:5px 12px;border:1px solid var(--brand);background:#fff;color:var(--brand-d);border-radius:8px;font:inherit;font-size:13px;cursor:pointer}
+  .btn-clear:hover{background:var(--brand);color:#fff}
+  .btn-clear:disabled{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -124,7 +127,7 @@
     <div class="card" style="padding:6px 10px">
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>สาขา</th><th class="num">คงเหลือ (บาท)</th><th>สถานะ</th><th>ผู้กรอก</th><th>อัปเดตล่าสุด</th></tr></thead>
+          <thead><tr><th>สาขา</th><th class="num">คงเหลือ (บาท)</th><th>สถานะ</th><th>ผู้กรอก</th><th>อัปเดตล่าสุด</th><th>ล้างข้อมูล</th></tr></thead>
           <tbody id="sBody"></tbody>
         </table>
       </div>
@@ -236,6 +239,22 @@ async function saveBalance(branch, amount, pc, note){
   }
 }
 
+async function clearBalance(branch, prev){
+  if(db){
+    const batch = db.batch();
+    const ts = firebase.firestore.FieldValue.serverTimestamp();
+    batch.delete(db.collection('coupon_balance').doc(branch.id));
+    batch.set(db.collection('coupon_log').doc(),
+      {branchId:branch.id, branchName:branch.name, action:'clear',
+       prevAmount:Number(prev.amount)||0, pc:(localStorage.getItem('coupon_pc_name')||''), createdAt:ts});
+    await batch.commit();
+  }else{
+    delete balances[branch.id];
+    localStorage.setItem(DEMO_KEY, JSON.stringify(balances));
+    refreshAll();
+  }
+}
+
 /* ============================================================
    4) UI
    ============================================================ */
@@ -336,10 +355,26 @@ function renderSummary(){
       <td><span class="tag ${c?'yes':'no'}">${c?'กรอกแล้ว':'ยังไม่กรอก'}</span></td>
       <td>${c?esc(c.pc)||'-':'-'}</td>
       <td>${c?fmtDate(c.updatedAt):'-'}</td>
+      <td>${c?`<button class="btn-clear" data-clear="${esc(b.id)}">ล้างข้อมูล</button>`:'-'}</td>
     </tr>`;
   }).join('');
-  $('sBody').innerHTML = rows || '<tr><td colspan="5" style="text-align:center;color:#6b7587">ไม่มีรายการ</td></tr>';
+  $('sBody').innerHTML = rows || '<tr><td colspan="6" style="text-align:center;color:#6b7587">ไม่มีรายการ</td></tr>';
 }
+
+$('sBody').addEventListener('click', async e=>{
+  const btn = e.target.closest('[data-clear]'); if(!btn) return;
+  const b = BRANCHES.find(x=>x.id===btn.dataset.clear);
+  const c = b && balances[b.id]; if(!c) return;
+  if(!confirm(`ยืนยันล้างข้อมูล\n\nสาขา: ${b.name}\nยอดที่จะถูกล้าง: ${fmt(c.amount)} บาท\n\nสาขานี้จะกลับเป็น "ยังไม่กรอก"`)) return;
+  btn.disabled = true; btn.textContent = 'กำลังล้าง...';
+  try{
+    await clearBalance(b, c);
+    toast('🧹 ล้างข้อมูลสาขา '+b.name+' แล้ว');
+  }catch(err){
+    console.error(err); toast('ล้างไม่สำเร็จ: '+err.message);
+    btn.disabled = false; btn.textContent = 'ล้างข้อมูล';
+  }
+});
 
 $('exportBtn').addEventListener('click',()=>{
   const data = BRANCHES.map(b=>{
