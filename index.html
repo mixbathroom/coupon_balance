@@ -61,6 +61,16 @@
   .hidden{display:none}
   .row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
   .row h2{margin:0;font-size:17px}
+  .h-title{margin:0 0 10px;font-size:18px}
+  .back{background:none;border:0;color:var(--brand-d);font:inherit;font-weight:500;padding:4px 0 10px;cursor:pointer}
+  .blist{display:flex;flex-direction:column;gap:8px}
+  .bcard{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font:inherit;color:inherit;cursor:pointer}
+  .bcard:hover{border-color:var(--brand)}
+  .bcard.mine{border:2px solid var(--brand)}
+  .bcard small{display:block;color:var(--muted);font-size:13px}
+  .bcard .side{text-align:right;flex-shrink:0}
+  .bcard .side b{display:block;font-size:17px;margin-top:2px}
+  .mylabel{display:block;color:var(--muted);font-size:13px;margin:0 0 6px}
   .btn-clear{padding:5px 12px;border:1px solid var(--brand);background:#fff;color:var(--brand-d);border-radius:8px;font:inherit;font-size:13px;cursor:pointer}
   .btn-clear:hover{background:var(--brand);color:#fff}
   .btn-clear:disabled{opacity:.5;cursor:not-allowed}
@@ -71,32 +81,43 @@
 <header>
   <h1>🎟️ คูปองคงเหลือ DoHome</h1>
   <div class="tabs">
-    <button class="tab active" data-tab="entry">กรอกข้อมูล</button>
-    <button class="tab" data-tab="summary">สรุปทุกสาขา</button>
+    <button class="tab active" data-tab="home">หน้าหลัก</button>
+    <button class="tab" data-tab="summary">สรุป / ส่งออก</button>
   </div>
 </header>
 <div id="demoBanner" class="demo hidden">โหมดทดลอง: ข้อมูลเก็บในเครื่องนี้เท่านั้น (ยังไม่ได้ใส่ค่า Firebase)</div>
 
 <main>
-  <!-- ===== กรอกข้อมูล ===== -->
-  <section id="entry">
-    <div class="card">
-      <div class="field">
-        <label for="branch">สาขา</label>
-        <select id="branch"><option value="">— เลือกสาขา —</option></select>
-      </div>
-
-      <div id="branchInfo" class="hidden">
-        <div class="info">
-          <div><small>เป้าการขาย (ก.ย. 69)</small><b id="iTarget">-</b></div>
-          <div><small>ยอดขาย Beger</small><b id="iSales">-</b></div>
-          <div><small>Achev %</small><b id="iAch">-</b></div>
-        </div>
-        <div id="lastBox" class="last"></div>
-      </div>
+  <!-- ===== หน้าหลัก ===== -->
+  <section id="home">
+    <div class="stat" style="margin-bottom:14px">
+      <small>กรอกแล้ว</small><b id="hDone">0 / 0</b>
+      <div class="bar"><i id="hBar"></i></div>
+      <small id="hLeft"></small>
     </div>
+    <div id="myBranch" class="hidden" style="margin-bottom:14px"></div>
+    <input id="hSearch" type="search" placeholder="🔍 ค้นหาสาขา" style="margin-bottom:10px">
+    <div class="chips">
+      <button class="chip active" data-hf="all">ทั้งหมด</button>
+      <button class="chip" data-hf="no">ยังไม่กรอก</button>
+      <button class="chip" data-hf="yes">กรอกแล้ว</button>
+    </div>
+    <div id="hList" class="blist"></div>
+  </section>
 
-    <div class="card hidden" id="formCard">
+  <!-- ===== กรอกข้อมูล ===== -->
+  <section id="entry" class="hidden">
+    <button class="back" id="backBtn">← กลับหน้าหลัก</button>
+    <h2 class="h-title" id="eName"></h2>
+    <div class="card">
+      <div class="info">
+        <div><small>เป้าการขาย (ก.ย. 69)</small><b id="iTarget">-</b></div>
+        <div><small>ยอดขาย Beger</small><b id="iSales">-</b></div>
+        <div><small>Achev %</small><b id="iAch">-</b></div>
+      </div>
+      <div id="lastBox" class="last"></div>
+    </div>
+    <div class="card" id="formCard">
       <div class="field">
         <label for="pc">ชื่อผู้กรอก (PC)</label>
         <input id="pc" type="text" placeholder="เช่น คุณสมหญิง" autocomplete="name">
@@ -269,24 +290,28 @@ function toast(msg){
   clearTimeout(toast._t); toast._t = setTimeout(()=>t.classList.remove('show'), 2600);
 }
 
-// tabs
-document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{
-  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));
-  $('entry').classList.toggle('hidden', b.dataset.tab!=='entry');
-  $('summary').classList.toggle('hidden', b.dataset.tab!=='summary');
-}));
+// ---- views: home / entry / summary ----
+let currentBranchId = '';
+function showView(name){
+  ['home','entry','summary'].forEach(v=>$(v).classList.toggle('hidden', v!==name));
+  const tab = name==='summary' ? 'summary' : 'home';
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active', x.dataset.tab===tab));
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.tab)));
+$('backBtn').addEventListener('click',()=>showView('home'));
 
-// branch select
-BRANCHES.forEach(b=>{
-  const o = document.createElement('option'); o.value=b.id; o.textContent=b.name; $('branch').appendChild(o);
-});
-$('branch').addEventListener('change', renderBranch);
+function openBranch(id){
+  currentBranchId = id;
+  renderBranch();
+  showView('entry');
+  setTimeout(()=>$('amount').focus(), 50);
+}
 
 function renderBranch(){
-  const b = BRANCHES.find(x=>x.id===$('branch').value);
-  $('branchInfo').classList.toggle('hidden', !b);
-  $('formCard').classList.toggle('hidden', !b);
+  const b = BRANCHES.find(x=>x.id===currentBranchId);
   if(!b) return;
+  $('eName').textContent = b.name;
   $('iTarget').textContent = fmt0(b.target);
   $('iSales').textContent = fmt0(b.sales);
   $('iAch').textContent = (b.sales/b.target*100).toFixed(1)+'%';
@@ -302,11 +327,52 @@ function renderBranch(){
   }
 }
 
+// ---- home ----
+let hFilter = 'all';
+document.querySelectorAll('#home .chip').forEach(c=>c.addEventListener('click',()=>{
+  hFilter = c.dataset.hf;
+  document.querySelectorAll('#home .chip').forEach(x=>x.classList.toggle('active',x===c));
+  renderHome();
+}));
+$('hSearch').addEventListener('input', renderHome);
+['hList','myBranch'].forEach(id=>$(id).addEventListener('click', e=>{
+  const el = e.target.closest('[data-open]');
+  if(el) openBranch(el.dataset.open);
+}));
+
+function cardHTML(b, mine){
+  const c = balances[b.id];
+  return `<button class="bcard${mine?' mine':''}" data-open="${esc(b.id)}">
+    <div><b>${esc(b.name)}</b><small>${c ? 'โดย '+(esc(c.pc)||'-')+' • '+fmtDate(c.updatedAt) : 'แตะเพื่อกรอกยอดคูปอง'}</small></div>
+    <div class="side"><span class="tag ${c?'yes':'no'}">${c?'กรอกแล้ว':'ยังไม่กรอก'}</span>${c?`<b>${fmt(c.amount)}</b>`:''}</div>
+  </button>`;
+}
+
+function renderHome(){
+  const done = BRANCHES.filter(b=>balances[b.id]).length;
+  const left = BRANCHES.length - done;
+  $('hDone').textContent = `${done} / ${BRANCHES.length}`;
+  $('hBar').style.width = (done/BRANCHES.length*100)+'%';
+  $('hLeft').textContent = left>0 ? `เหลืออีก ${left} สาขาที่ยังไม่กรอก` : '🎉 กรอกครบทุกสาขาแล้ว';
+
+  const lb = BRANCHES.find(x=>x.id===localStorage.getItem('coupon_last_branch'));
+  $('myBranch').classList.toggle('hidden', !lb);
+  if(lb) $('myBranch').innerHTML = `<span class="mylabel">สาขาที่กรอกล่าสุดในเครื่องนี้</span>${cardHTML(lb,true)}`;
+
+  const q = $('hSearch').value.trim().toLowerCase();
+  const list = BRANCHES
+    .filter(b=>!q || b.name.toLowerCase().includes(q))
+    .filter(b=>hFilter==='all' || (hFilter==='yes' ? !!balances[b.id] : !balances[b.id]))
+    .sort((a,b)=>(balances[a.id]?1:0)-(balances[b.id]?1:0));   // ยังไม่กรอกขึ้นก่อน
+  $('hList').innerHTML = list.map(b=>cardHTML(b,false)).join('')
+    || '<div style="text-align:center;color:#6b7587;padding:20px">ไม่พบสาขา</div>';
+}
+
 // remember PC name
 $('pc').value = localStorage.getItem('coupon_pc_name') || '';
 
 $('saveBtn').addEventListener('click', async ()=>{
-  const b = BRANCHES.find(x=>x.id===$('branch').value);
+  const b = BRANCHES.find(x=>x.id===currentBranchId);
   const pc = $('pc').value.trim();
   const raw = $('amount').value.replace(/,/g,'').trim();
   const note = $('note').value.trim();
@@ -321,7 +387,10 @@ $('saveBtn').addEventListener('click', async ()=>{
     await saveBalance(b, amount, pc, note);
     localStorage.setItem('coupon_pc_name', pc);
     $('amount').value=''; $('note').value='';
+    localStorage.setItem('coupon_last_branch', b.id);
+    renderHome();
     toast('✅ บันทึกเรียบร้อย');
+    showView('home');
   }catch(e){
     console.error(e); toast('บันทึกไม่สำเร็จ: '+e.message);
   }finally{
@@ -331,9 +400,9 @@ $('saveBtn').addEventListener('click', async ()=>{
 
 // summary
 let filter = 'all';
-document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{
+document.querySelectorAll('#summary .chip').forEach(c=>c.addEventListener('click',()=>{
   filter = c.dataset.f;
-  document.querySelectorAll('.chip').forEach(x=>x.classList.toggle('active',x===c));
+  document.querySelectorAll('#summary .chip').forEach(x=>x.classList.toggle('active',x===c));
   renderSummary();
 }));
 
@@ -399,9 +468,10 @@ $('exportBtn').addEventListener('click',()=>{
   XLSX.writeFile(wb, `coupon_balance_${stamp}.xlsx`);
 });
 
-function refreshAll(){ renderBranch(); renderSummary(); }
+function refreshAll(){ renderHome(); renderBranch(); renderSummary(); }
 
 initStore();
+renderHome();
 renderSummary();
 </script>
 </body>
